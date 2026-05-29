@@ -1,0 +1,77 @@
+{
+  "datasetName": "TSAI Indian Aligned Face Dataset (Subset)",
+  "demographics": "Indian skin tones, diverse lighting, indoor/outdoor variations",
+  "totalImages": 36,
+  "calibration": {
+    "recommendedThreshold": 0.4,
+    "TAR_at_recommended": 0.0,
+    "FAR_at_recommended": 0.0
+  },
+  "accuracyProfile": [
+    {
+      "threshold": 0.3,
+      "TAR": 0.8889,
+      "FAR": 0.7037
+    },
+    {
+      "threshold": 0.325,
+      "TAR": 0.8889,
+      "FAR": 0.6667
+    },
+    {
+      "threshold": 0.35,
+      "TAR": 0.7778,
+      "FAR": 0.6296
+    },
+    {
+      "threshold": 0.375,
+      "TAR": 0.6667,
+      "FAR": 0.5926
+    },
+    {
+      "threshold": 0.4,
+      "TAR": 0.6667,
+      "FAR": 0.5926
+    },
+    {
+      "threshold": 0.425,
+      "TAR": 0.5556,
+      "FAR": 0.4815
+    },
+    {
+      "threshold": 0.45,
+      "TAR": 0.5556,
+      "FAR": 0.4815
+    },
+    {
+      "threshold": 0.475,
+      "TAR": 0.5556,
+      "FAR": 0.4074
+    },
+    {
+      "threshold": 0.5,
+      "TAR": 0.5556,
+      "FAR": 0.3333
+    },
+    {
+      "threshold": 0.525,
+      "TAR": 0.2222,
+      "FAR": 0.2222
+    },
+    {
+      "threshold": 0.55,
+      "TAR": 0.2222,
+      "FAR": 0.2222
+    },
+    {
+      "threshold": 0.575,
+      "TAR": 0.2222,
+      "FAR": 0.1481
+    }
+  ],
+  "livenessMetrics": {
+    "averageRealFaceScore": 0.1036,
+    "averageSpoofAttackScore": 0.1044,
+    "spoofRejectionRateAtThreshold60": 1.0
+  }
+}

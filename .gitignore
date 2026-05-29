@@ -1,0 +1,34 @@
+# Dependency directories
+node_modules/
+DatalakeBiometric/node_modules/
+
+# Android build outputs and caches
+.gradle/
+DatalakeBiometric/android/.gradle/
+DatalakeBiometric/android/app/build/
+DatalakeBiometric/android/build/
+*.keystore
+!DatalakeBiometric/android/app/debug.keystore
+
+# iOS build outputs and CocoaPods
+DatalakeBiometric/ios/Pods/
+DatalakeBiometric/ios/build/
+DatalakeBiometric/ios/DerivedData/
+.xcworkspace/
+
+# Local configuration / Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Benchmark test dataset images (public images downloaded locally)
+DatalakeBiometric/benchmark_data/
+
+# Hackathon Master Plan (sensitive details)
+NHAI_Hackathon7_MasterPlan_v2.md
