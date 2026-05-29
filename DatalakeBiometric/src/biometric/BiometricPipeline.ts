@@ -1,23 +1,24 @@
 import { runIQA, FaceDetectionResult, IQAResult } from './FaceDetector';
-import { BlinkChallenge, BlinkState } from './LivenessActive';
+import { ActiveLivenessChallenge, ActiveLivenessState } from './LivenessActive';
 import { initPassiveLiveness, checkPassiveLiveness } from './LivenessPassive';
 import { alignFace } from './FaceAligner';
 import { initEmbeddingEngine, generateEmbedding } from './EmbeddingEngine';
 import { matchEmbedding, MatchResult } from './SimilarityMatcher';
 import * as SecureDatabase from '../storage/SecureDatabase';
+import { getCurrentLocation } from '../utils/LocationUtils';
 
-export type PipelineStage = 'INIT' | 'IQA' | 'BLINK' | 'PASSIVE' | 'ALIGNING' | 'MATCHING' | 'DONE';
+export type PipelineStage = 'INIT' | 'IQA' | 'ACTIVE_LIVENESS' | 'PASSIVE' | 'ALIGNING' | 'MATCHING' | 'DONE';
 
 export interface VerifyResult {
   success: boolean;
   userId: string | null;
   score: number;
-  failReason?: 'no_face' | 'bad_quality' | 'blink_timeout' | 'spoof_detected' | 'no_match';
+  failReason?: 'no_face' | 'bad_quality' | 'liveness_timeout' | 'spoof_detected' | 'no_match';
   processingTimeMs: number;
 }
 
 export class BiometricPipeline {
-  private blinkChallenge = new BlinkChallenge();
+  private activeChallenge = new ActiveLivenessChallenge();
   private passiveDone = false;
   private isInitialized = false;
 
@@ -32,8 +33,27 @@ export class BiometricPipeline {
   }
 
   public reset(): void {
-    this.blinkChallenge.reset();
+    this.activeChallenge.reset();
     this.passiveDone = false;
+  }
+
+  // Phase 4.2: Warmup models to prevent cold-start latency on first check-in
+  public async warmup(): Promise<void> {
+    if (!this.isInitialized) return;
+    try {
+      // Dummy face and frames
+      const dummyFace = new Float32Array(112 * 112 * 3);
+      const dummyPassive = new Uint8Array(80 * 80 * 3);
+      
+      console.log("Warming up models...");
+      await Promise.all([
+        generateEmbedding(dummyFace),
+        checkPassiveLiveness(dummyPassive, 80, 80, { x: 0, y: 0, width: 80, height: 80 })
+      ]);
+      console.log("Models warmed up successfully.");
+    } catch (e) {
+      console.warn("Warmup error (safe to ignore):", e);
+    }
   }
 
   // Processes a frame in real-time. Returns null if still in progress, or VerifyResult when complete.
@@ -67,27 +87,28 @@ export class BiometricPipeline {
     const face = iqaResult.face!;
     const qualityScore = iqaResult.qualityScore || 0.5; // From Bonus Enhancement
 
-    // 2. Active Liveness: Eye Blink Challenge
-    onStageChange('BLINK', 'PLEASE BLINK');
-    const blinkState = this.blinkChallenge.processFace(face);
+    // 2. Active Liveness: Randomized Challenge
+    const prompt = this.activeChallenge.getPrompt();
+    onStageChange('ACTIVE_LIVENESS', prompt);
+    const activeState = this.activeChallenge.processFace(face);
     
-    if (blinkState === 'timed_out') {
+    if (activeState === 'timed_out') {
       this.reset();
       return {
         success: false,
         userId: null,
         score: 0,
-        failReason: 'blink_timeout',
+        failReason: 'liveness_timeout',
         processingTimeMs: Date.now() - startTime
       };
     }
     
-    if (blinkState === 'waiting') {
-      return null; // Keep waiting for blink challenge to complete
+    if (activeState === 'waiting') {
+      return null; // Keep waiting for active challenge to complete
     }
     
-    if (blinkState === 'blink_detected') {
-      onStageChange('BLINK', 'Blink detected! Keep still...');
+    if (activeState === 'action_detected') {
+      onStageChange('ACTIVE_LIVENESS', 'Action detected! Keep still...');
       return null;
     }
 
@@ -131,6 +152,8 @@ export class BiometricPipeline {
     let embedding: Float32Array;
     try {
       embedding = await generateEmbedding(alignedFace);
+      // Clean up aligned face buffer to assist GC
+      (alignedFace as any) = null;
     } catch (e) {
       console.error("Embedding generation failed:", e);
       return {
@@ -154,11 +177,26 @@ export class BiometricPipeline {
     this.reset(); // Reset pipeline for next attempt
 
     if (matchResult.matched) {
+      let lat: number | undefined;
+      let lng: number | undefined;
+      try {
+        const loc = await getCurrentLocation();
+        lat = loc.latitude;
+        lng = loc.longitude;
+      } catch (e) {
+        console.warn("Could not capture GPS location:", e);
+      }
+      
       // Write attendance transactionally to DB
       await SecureDatabase.recordAttendance({
         userId: matchResult.userId!,
-        score: matchResult.score
+        score: matchResult.score,
+        lat,
+        lng
       });
+      
+      // Memory cleanup
+      (embedding as any) = null;
       
       return {
         success: true,
@@ -167,6 +205,9 @@ export class BiometricPipeline {
         processingTimeMs: Date.now() - startTime
       };
     } else {
+      // Memory cleanup
+      (embedding as any) = null;
+      
       return {
         success: false,
         userId: null,
@@ -177,7 +218,7 @@ export class BiometricPipeline {
     }
   }
 
-  // Enrolls a user using 3 IQA-passed frames and their corresponding face detections
+  // Enrolls a user using 5 IQA-passed frames and their corresponding face detections
   public async enrollUser(
     userId: string,
     framesPixels: Uint8Array[],
@@ -189,15 +230,15 @@ export class BiometricPipeline {
       await this.initialize();
     }
 
-    if (framesPixels.length < 3 || facesList.length < 3) {
-      console.error("Cannot enroll user: need at least 3 quality frames");
+    if (framesPixels.length < 5 || facesList.length < 5) {
+      console.error("Cannot enroll user: need at least 5 quality frames");
       return false;
     }
 
     try {
       const embeddings: Float32Array[] = [];
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 5; i++) {
         const frame = framesPixels[i];
         const face = facesList[i];
 
@@ -225,13 +266,15 @@ export class BiometricPipeline {
         // Generate embedding
         const emb = await generateEmbedding(aligned);
         embeddings.push(emb);
+        // Clean up memory
+        (aligned as any) = null;
       }
 
-      // Average the 3 embeddings element-wise
+      // Average the 5 embeddings element-wise
       const dim = embeddings[0].length;
       const averaged = new Float32Array(dim);
       for (let j = 0; j < dim; j++) {
-        averaged[j] = (embeddings[0][j] + embeddings[1][j] + embeddings[2][j]) / 3.0;
+        averaged[j] = (embeddings[0][j] + embeddings[1][j] + embeddings[2][j] + embeddings[3][j] + embeddings[4][j]) / 5.0;
       }
 
       // Re-normalize the averaged embedding to ensure it lies on the unit hypersphere

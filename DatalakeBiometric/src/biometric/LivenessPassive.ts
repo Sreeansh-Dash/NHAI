@@ -7,7 +7,7 @@ export async function initPassiveLiveness(): Promise<void> {
   try {
     // Metro bundler resolves .tflite as asset number
     const modelAsset = require('../assets/models/minifasnet_v2_se.tflite');
-    passiveLivenessModel = await loadTensorflowModel(modelAsset);
+    passiveLivenessModel = await loadTensorflowModel(modelAsset, 'default');
     console.log("MiniFASNet passive liveness model loaded successfully.");
   } catch (error) {
     console.error("Failed to load MiniFASNet model:", error);
@@ -25,9 +25,11 @@ export async function checkPassiveLiveness(
     throw new Error("Passive liveness model not initialized");
   }
 
-  // 1. Expand bounds by 1.3x (15% on each side)
-  const expandW = faceBounds.width * 0.15;
-  const expandH = faceBounds.height * 0.15;
+  // 1. Expand bounds by 4/3 ratio
+  const targetW = faceBounds.width * 1.333;
+  const targetH = faceBounds.height * 1.333;
+  const expandW = (targetW - faceBounds.width) / 2;
+  const expandH = (targetH - faceBounds.height) / 2;
   
   const cropX = Math.max(0, Math.floor(faceBounds.x - expandW));
   const cropY = Math.max(0, Math.floor(faceBounds.y - expandH));
@@ -47,10 +49,16 @@ export async function checkPassiveLiveness(
     80
   );
 
-  // 3. Normalize to [-1.0, 1.0] and flatten to Float32Array
+  // 3. Normalize to ImageNet stats: mean=[0.406, 0.456, 0.485], std=[0.225, 0.224, 0.229]
   const inputTensor = new Float32Array(80 * 80 * 3);
-  for (let i = 0; i < resizedPixels.length; i++) {
-    inputTensor[i] = (resizedPixels[i] / 255.0 - 0.5) / 0.5;
+  const mean = [0.406, 0.456, 0.485];
+  const std = [0.225, 0.224, 0.229];
+  
+  for (let p = 0; p < 80 * 80; p++) {
+    for (let c = 0; c < 3; c++) {
+      const pixelVal = resizedPixels[p * 3 + c] / 255.0;
+      inputTensor[p * 3 + c] = (pixelVal - mean[c]) / std[c];
+    }
   }
 
   // 4. Run model

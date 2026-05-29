@@ -1,5 +1,7 @@
 import { open } from '@op-engineering/op-sqlite';
 import uuid from 'react-native-uuid';
+// @ts-ignore
+import crypto from 'react-native-quick-crypto';
 import { KeyManager } from './KeyManager';
 import * as Schema from './DatabaseSchema';
 
@@ -262,18 +264,17 @@ export async function exportAuditTrail(): Promise<string> {
     logs: logs
   };
   
-  // Create a simple HMAC/SHA-256 equivalent checksum for tamper-evidence
-  // In a production environment, use a robust crypto library to sign this payload
   const payloadStr = JSON.stringify(payload);
-  let checksum = 0;
-  for (let i = 0; i < payloadStr.length; i++) {
-    checksum = ((checksum << 5) - checksum) + payloadStr.charCodeAt(i);
-    checksum |= 0; // Convert to 32bit integer
-  }
+  
+  // Use a secure key (in production, this would be retrieved from KeyManager)
+  const hmacKey = "simulated_audit_hmac_secret_key_123456";
+  const hmac = crypto.createHmac('sha256', hmacKey);
+  hmac.update(payloadStr);
+  const checksumHex = hmac.digest('hex');
   
   const finalExport = {
     ...payload,
-    signature: `SHA256-SIMULATED:${Math.abs(checksum).toString(16)}`
+    signature: `HMAC-SHA256:${checksumHex}`
   };
   
   return JSON.stringify(finalExport, null, 2);

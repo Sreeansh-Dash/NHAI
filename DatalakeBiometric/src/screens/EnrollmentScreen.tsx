@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { Camera, useCameraDevices } from 'react-native-vision-camera';
+import { Camera, useCameraDevice, useFrameProcessor } from 'react-native-vision-camera';
 import { BiometricPipeline } from '../biometric/BiometricPipeline';
 import { FaceDetectionResult } from '../biometric/FaceDetector';
 
@@ -25,8 +25,17 @@ export const EnrollmentScreen: React.FC<EnrollmentScreenProps> = ({
   const [capturedCount, setCapturedCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const devices = useCameraDevices();
-  const device = devices.find(d => d.position === 'front');
+  const device = useCameraDevice('front');
+  
+  const frameProcessor = useFrameProcessor((frame) => {
+    'worklet';
+    const now = Date.now();
+    if (now - lastCaptureTime.current < 500) return;
+    
+    // In actual implementation: FaceDetector.detect(frame)
+    // We bridge this back to JS for UI updates
+    // runOnJS(onFrameCaptured)(...);
+  }, []);
   
   // Refs for tracking captured frames during enrollment
   const capturedFrames = useRef<Uint8Array[]>([]);
@@ -48,10 +57,10 @@ export const EnrollmentScreen: React.FC<EnrollmentScreenProps> = ({
     setStage('enrolling');
     
     // Simulate multi-frame capture and average embedding generation
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 5; i++) {
       await new Promise(resolve => setTimeout(resolve, 600));
       setCapturedCount(i);
-      setStatusText(`Captured snapshot ${i}/3...`);
+      setStatusText(`Captured snapshot ${i}/5...`);
     }
 
     await new Promise(resolve => setTimeout(resolve, 800));
@@ -102,8 +111,8 @@ export const EnrollmentScreen: React.FC<EnrollmentScreenProps> = ({
     const nextCount = capturedFrames.current.length;
     setCapturedCount(nextCount);
 
-    if (nextCount < 3) {
-      setStatusText(`Capturing snapshot ${nextCount}/3... Keep still`);
+    if (nextCount < 5) {
+      setStatusText(`Capturing snapshot ${nextCount}/5... Keep still`);
     } else {
       setIsProcessing(true);
       setStage('enrolling');
@@ -149,8 +158,13 @@ export const EnrollmentScreen: React.FC<EnrollmentScreenProps> = ({
       <View style={styles.cameraContainer}>
         {hasPermission && device ? (
           <View style={styles.cameraPlaceholder}>
-            {/* Real Camera (VisionCamera v4 frame processor would be bound here) */}
-            <Text style={styles.cameraText}>Camera Live Feed</Text>
+            {/* Real Camera */}
+            <Camera
+              style={StyleSheet.absoluteFill}
+              device={device}
+              isActive={true}
+              frameProcessor={frameProcessor}
+            />
             {/* Oval Guide Overlay */}
             <View style={styles.ovalGuide} />
           </View>
@@ -173,6 +187,8 @@ export const EnrollmentScreen: React.FC<EnrollmentScreenProps> = ({
           <View style={[styles.dot, capturedCount >= 1 ? styles.dotActive : null]} />
           <View style={[styles.dot, capturedCount >= 2 ? styles.dotActive : null]} />
           <View style={[styles.dot, capturedCount >= 3 ? styles.dotActive : null]} />
+          <View style={[styles.dot, capturedCount >= 4 ? styles.dotActive : null]} />
+          <View style={[styles.dot, capturedCount >= 5 ? styles.dotActive : null]} />
         </View>
       </View>
 

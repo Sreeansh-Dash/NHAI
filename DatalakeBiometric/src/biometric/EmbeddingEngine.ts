@@ -6,7 +6,7 @@ export async function initEmbeddingEngine(): Promise<void> {
   if (embeddingModel) return;
   try {
     const modelAsset = require('../assets/models/mobilefacenet.tflite');
-    embeddingModel = await loadTensorflowModel(modelAsset);
+    embeddingModel = await loadTensorflowModel(modelAsset, 'default');
     console.log("MobileFaceNet embedding engine loaded successfully.");
   } catch (error) {
     console.error("Failed to load MobileFaceNet model:", error);

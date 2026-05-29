@@ -10,18 +10,22 @@
     "test": "jest"
   },
   "dependencies": {
+    "@op-engineering/op-sqlite": "9.2.0",
+    "@react-native-community/geolocation": "^3.4.0",
+    "@react-native-community/netinfo": "11.3.1",
+    "jail-monkey": "^3.0.0",
     "react": "18.2.0",
     "react-native": "0.74.5",
-    "react-native-vision-camera": "4.6.0",
-    "react-native-vision-camera-face-detector": "1.7.0",
-    "react-native-fast-tflite": "1.6.0",
-    "react-native-mmkv": "2.12.2",
-    "react-native-keychain": "8.2.0",
-    "@op-engineering/op-sqlite": "9.2.0",
-    "@react-native-community/netinfo": "11.3.1",
     "react-native-background-fetch": "4.2.3",
+    "react-native-fast-tflite": "1.6.0",
+    "react-native-fs": "^2.20.0",
+    "react-native-keychain": "8.2.0",
+    "react-native-mmkv": "2.12.2",
+    "react-native-permissions": "4.1.5",
+    "react-native-ssl-pinning": "^1.6.0",
     "react-native-uuid": "2.0.1",
-    "react-native-permissions": "4.1.5"
+    "react-native-vision-camera": "4.6.0",
+    "react-native-vision-camera-face-detector": "1.7.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

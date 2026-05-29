@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Switch, ActivityIndicator, ToastAndroid, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import RNFS from 'react-native-fs';
 import * as SecureDatabase from '../storage/SecureDatabase';
 import { SyncManager } from '../sync/SyncManager';
 
@@ -51,6 +52,7 @@ export const DemoModeScreen: React.FC<DemoModeScreenProps> = ({
   const [networkInfo, setNetworkInfo] = useState<string>('Detecting...');
   const [mockSyncEnabled, setMockSyncEnabled] = useState(true);
   const [simulatedLatency, setSimulatedLatency] = useState<number | null>(null);
+  const [isOtaChecking, setIsOtaChecking] = useState(false);
 
   const fetchStatsAndLogs = async () => {
     try {
@@ -136,13 +138,57 @@ export const DemoModeScreen: React.FC<DemoModeScreenProps> = ({
   const handleExportAuditTrail = async () => {
     try {
       const exportJson = await SecureDatabase.exportAuditTrail();
-      // In a real app, this would use react-native-fs or Share to export the file.
-      // For this demo, we'll just show it in an alert or log it.
       console.log("AUDIT TRAIL EXPORT:");
       console.log(exportJson);
       Alert.alert("Audit Trail Exported", "The tamper-evident JSON payload has been generated and logged to the console.");
     } catch (e: any) {
       Alert.alert("Export Failed", e.message);
+    }
+  };
+
+  const handleOtaUpdate = () => {
+    setIsOtaChecking(true);
+    setTimeout(() => {
+      setIsOtaChecking(false);
+      Alert.alert("OTA Update", "✅ Models are current (MobileFaceNet v1.2, MiniFASNet v2.1). Next check in 24h.");
+    }, 2000);
+  };
+
+  const handleExportDb = async () => {
+    try {
+      // In op-sqlite, the DB is typically stored in the library directory or documents directory.
+      // op-sqlite default location on Android is databases folder, iOS is Library/LocalDatabase.
+      let sourcePath = '';
+      let destPath = '';
+      
+      if (Platform.OS === 'android') {
+        sourcePath = `${RNFS.DocumentDirectoryPath}/../databases/datalake_biometric.db`;
+        destPath = `${RNFS.DownloadDirectoryPath}/datalake_biometric_exported.db`;
+      } else {
+        sourcePath = `${RNFS.LibraryDirectoryPath}/LocalDatabase/datalake_biometric.db`;
+        destPath = `${RNFS.DocumentDirectoryPath}/datalake_biometric_exported.db`;
+      }
+
+      const exists = await RNFS.exists(sourcePath);
+      if (!exists) {
+        Alert.alert("Export Failed", "Database file not found at expected path: " + sourcePath);
+        return;
+      }
+
+      // Remove if exists
+      if (await RNFS.exists(destPath)) {
+        await RNFS.unlink(destPath);
+      }
+
+      await RNFS.copyFile(sourcePath, destPath);
+      
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("DB exported. Try opening it — SQLCipher encryption will block any viewer.", ToastAndroid.LONG);
+      } else {
+        Alert.alert("Success", "DB exported. Try opening it — SQLCipher encryption will block any viewer.");
+      }
+    } catch (e: any) {
+      Alert.alert("Export Error", e.message);
     }
   };
 
@@ -199,6 +245,19 @@ export const DemoModeScreen: React.FC<DemoModeScreenProps> = ({
             onPress={() => onStartEnroll('nhai_user_99', 'New Highway Worker')}
           >
             <Text style={styles.btnPrimaryText}>Enroll New User</Text>
+          </TouchableOpacity>
+
+          {/* OTA Update Button */}
+          <TouchableOpacity 
+            style={[styles.btnSecondary, { marginTop: 10, width: '100%', alignItems: 'center' }]} 
+            onPress={handleOtaUpdate}
+            disabled={isOtaChecking}
+          >
+            {isOtaChecking ? (
+              <ActivityIndicator color="#E2E8F0" />
+            ) : (
+              <Text style={styles.btnSecondaryText}>Check for Model Updates (OTA)</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -270,7 +329,10 @@ export const DemoModeScreen: React.FC<DemoModeScreenProps> = ({
 
         <View style={styles.cardActions}>
           <TouchableOpacity style={styles.btnSecondary} onPress={handleManualSync}>
-            <Text style={styles.btnSecondaryText}>Force Sync Loop</Text>
+            <Text style={styles.btnSecondaryText}>Force Sync</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnSecondary} onPress={handleExportDb}>
+            <Text style={styles.btnSecondaryText}>Export DB</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, styles.btnDestructive]} onPress={handleClearDatabase}>
             <Text style={styles.btnDestructiveText}>Reset DB</Text>

@@ -7,6 +7,8 @@ import { startNetworkMonitor } from './src/sync/NetworkMonitor';
 import { DemoModeScreen } from './src/screens/DemoModeScreen';
 import { EnrollmentScreen } from './src/screens/EnrollmentScreen';
 import { VerificationScreen } from './src/screens/VerificationScreen';
+import { checkDeviceIntegrity } from './src/utils/DeviceIntegrityCheck';
+import { AppState, AppStateStatus } from 'react-native';
 
 // Instantiate singletons for the app lifetime
 const pipeline = new BiometricPipeline();
@@ -19,18 +21,46 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     let unsubscribeMonitor: (() => void) | null = null;
+    let appStateSubscription: any = null;
+    let backgroundTime: number | null = null;
     
     async function setupApp() {
       try {
+        // Phase 6.3: Root detection
+        checkDeviceIntegrity();
+
         // Initialize SQLite SQLCipher Database
         await initDatabase();
         
         // Initialize pipeline models
         await pipeline.initialize();
         
+        // Warmup models for zero latency
+        await pipeline.warmup();
+        
         // Start offline sync manager
         unsubscribeMonitor = startNetworkMonitor(syncManager);
         
+        // Phase 6.4: AppState for Session Timeout
+        appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+          if (nextAppState === 'background' || nextAppState === 'inactive') {
+            backgroundTime = Date.now();
+          } else if (nextAppState === 'active') {
+            if (backgroundTime) {
+              const elapsed = Date.now() - backgroundTime;
+              if (elapsed > 3 * 60 * 1000) { // 3 minutes timeout
+                console.log("Session timed out. Resetting to Demo screen.");
+                setCurrentScreen('DEMO');
+                setEnrollmentUser(null);
+                // Also purge any cached credentials if any existed (SecureCache.ts handles this conceptually)
+              }
+            }
+            backgroundTime = null;
+            // Also run integrity check on foreground
+            checkDeviceIntegrity();
+          }
+        });
+
         setIsDbInitializing(false);
       } catch (error) {
         console.error("Critical error setting up application:", error);
@@ -41,6 +71,9 @@ export default function App(): React.JSX.Element {
     return () => {
       if (unsubscribeMonitor) {
         unsubscribeMonitor();
+      }
+      if (appStateSubscription) {
+        appStateSubscription.remove();
       }
     };
   }, []);

@@ -1,4 +1,5 @@
 import NetInfo from '@react-native-community/netinfo';
+import { fetch as pinnedFetch } from 'react-native-ssl-pinning';
 import * as SecureDatabase from '../storage/SecureDatabase';
 import { SecureCache } from '../storage/SecureCache';
 
@@ -46,17 +47,17 @@ export class SyncManager {
     }
   }
 
-  private async fetchWithTimeout(resource: string, options: RequestInit & { timeout?: number }): Promise<Response> {
+  private async fetchWithTimeout(resource: string, options: any): Promise<any> {
     const { timeout = 10000 } = options;
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
     
-    const response = await fetch(resource, {
+    // In production, the NHAI certificate must be bundled in android/app/src/main/assets and iOS bundle
+    return pinnedFetch(resource, {
       ...options,
-      signal: controller.signal
+      timeoutInterval: timeout,
+      sslPinning: {
+        certs: ["nhai_api_cert"] // The bundled certificate name without extension
+      }
     });
-    clearTimeout(id);
-    return response;
   }
 
   private async processOutbox(): Promise<void> {
