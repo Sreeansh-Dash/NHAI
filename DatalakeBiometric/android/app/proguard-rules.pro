@@ -49,10 +49,24 @@
 -dontwarn androidx.biometric.**
 
 # ---------------------------------------------------------------------------
-# CameraX / Camera2 (used by react-native-camera)
+# CameraX / Camera2 / VisionCamera (react-native-vision-camera JSI)
 # ---------------------------------------------------------------------------
 -keep class androidx.camera.** { *; }
 -dontwarn androidx.camera.**
+-keep class com.mrousavy.** { *; }
+-dontwarn com.mrousavy.**
+
+# ---------------------------------------------------------------------------
+# react-native-quick-crypto (OpenSSL JNI bindings)
+# ---------------------------------------------------------------------------
+-keep class com.margelo.quickcrypto.** { *; }
+-dontwarn com.margelo.quickcrypto.**
+
+# ---------------------------------------------------------------------------
+# react-native-keychain (secure keystore access)
+# ---------------------------------------------------------------------------
+-keep class com.oblador.keychain.** { *; }
+-dontwarn com.oblador.keychain.**
 
 # ---------------------------------------------------------------------------
 # OkHttp / Okio (common networking stack)
