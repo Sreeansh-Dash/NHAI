@@ -216,6 +216,33 @@ The app launches into a **Demo Mode console** where hackathon judges can:
 5. **Export audit trail** — Generate HMAC-SHA256 signed JSON
 6. **Export encrypted DB** — Copy SQLCipher database to Downloads
 
+## Usage Guide
+
+### For the Field Manager (Enrollment)
+1. **Launch the App:** Open DatalakeBiometric. The system performs an integrity check (root detection) and loads the models.
+2. **Enroll a Worker:** 
+   - Navigate to the **Enrollment** screen.
+   - Position the worker's face within the frame. The IQA (Image Quality Assessment) system will provide real-time feedback (e.g., "Look straight", "Move closer").
+   - The app automatically captures 5 high-quality frames spaced 500ms apart.
+   - These frames are aligned, processed into embeddings, averaged, and securely stored in the encrypted local SQLite database.
+
+### For the Field Worker (Daily Check-In)
+1. **Initiate Verification:** The worker stands in front of the device running the Verification screen.
+2. **Active Liveness Challenge:** The app will prompt a randomized challenge:
+   - *Blink your eyes*
+   - *Smile*
+   - *Turn your head*
+3. **Passive Liveness & Matching:** 
+   - The system captures a frame and runs it through the MiniFASNet anti-spoofing model to ensure it's a live person (not a photo or screen).
+   - If it passes, the face is converted to an embedding and compared against the local database using cosine similarity.
+4. **Attendance Recorded:** 
+   - Upon a successful match, the app captures the current GPS coordinates.
+   - An attendance record is written locally and queued in the `sync_outbox`.
+
+### For the System (Offline Sync)
+1. **Background Sync:** The app listens for network connectivity. When the device reaches an area with a stable internet connection, the background sync engine pushes the queued attendance records to the NHAI Data Lake 3.0 backend.
+2. **Purge:** Successfully synced records are purged from the local device to maintain security and save storage space.
+
 ---
 
 ## Constraints Compliance
